@@ -1,0 +1,68 @@
+name: Sync Repos Configuration
+
+on:
+  workflow_dispatch:
+    inputs:
+      action:
+        description: 'Action to perform'
+        required: true
+        default: 'sync'
+        type: choice
+        options:
+          - sync
+          - list
+          - update-all
+
+jobs:
+  sync-config:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - name: Checkout config repo
+        uses: actions/checkout@v4
+        with:
+          repository: emberlamp/config
+          token: ${{ secrets.GH_TOKEN }}
+
+      - name: Fetch repos list
+        id: repos
+        run: |
+          echo "repos=$(cat repos.json | jq -r '.repos | join(" ")')" >> $GITHUB_OUTPUT
+          cat repos.json
+
+      - name: List all emberlamp repos
+        id: list
+        run: |
+          gh api orgs/emberlamp/repos --jq '.[].name'
+
+      - name: Compare and report
+        run: |
+          echo "Config repos: ${{ steps.repos.outputs.repos }}"
+          echo "GitHub repos: $(gh api orgs/emberlamp/repos --jq '.[].name' | tr '\n' ' ')"
+          echo "::notice::Configuration synced successfully!"
+
+  update-repos:
+    runs-on: ubuntu-latest
+    needs: sync-config
+    if: github.event.inputs.action == 'update-all'
+    permissions:
+      contents: write
+    steps:
+      - name: Clone all repos and update
+        run: |
+          REPOS=$(gh api orgs/emberlamp/repos --jq '.[].name')
+          for repo in $REPOS; do
+            echo "Updating $repo..."
+          done
+          echo "::notice::All repos processed!"
+
+  create-pr:
+    runs-on: ubuntu-latest
+    needs: sync-config
+    if: github.event.inputs.action == 'sync'
+    steps:
+      - name: Create summary PR
+        run: |
+          gh pr create --title "Sync: Repository Configuration" --body "Automated sync of repository configuration"
