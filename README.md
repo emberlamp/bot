@@ -1,63 +1,90 @@
-# Emberlamp Bot
+# Emberlamp Auto Bot
 
 Automation bot for managing emberlamp organization repositories.
 
 ## Overview
 
-This bot provides automated tasks for the emberlamp organization:
-- Sync repository configuration from `repos.json`
-- Execute commands across all repos
-- Monitor and report repository status
+This bot provides automated tasks for the emberlamp organization through GitHub Actions workflows that run automatically or on-demand.
 
-## Components
+## Features
 
-### GitHub Actions Workflow
-Located in `.github/workflows/sync.yml`
-- Manual trigger via workflow_dispatch
-- Syncs repos from config repo
-- Compares config vs actual GitHub repos
+### GitHub Actions Workflows
 
-### Python Bot Script
-`bot.py` - Standalone automation script
+#### 1. Auto-Bot Workflow (.github/workflows/auto-bot.yml)
+
+Automatically runs based on:
+
+- **Schedule**: Daily at midnight (`0 0 * * *`)
+- **Repository Dispatch**: When config repo is updated
+- **Manual Trigger**: Workflow dispatch with action selection
+
+#### Actions Available
+
+| Action | Description |
+|--------|-------------|
+| `sync` | Compare config vs GitHub repos |
+| `update` | Update all repos automatically |
+| `backup` | Create backup of all repos |
+| `report` | Generate daily report |
 
 ## Usage
 
-### Python Script
-```bash
-python bot.py sync      # Sync and compare repos
-python bot.py list      # List all repos
-python bot.py update "command"  # Run command in all repos
-```
+### Automatic (Scheduled)
 
-### GitHub Actions
+The workflow runs automatically every day at midnight.
+
+### Manual Trigger
+
 1. Go to https://github.com/emberlamp/bot/actions
 2. Click "Run workflow"
-3. Select action: sync, list, or update-all
+3. Select action: sync, update, backup, or report
+
+### Trigger from Config Changes
+
+Update `repos.json` in config repo → triggers auto-update!
+
+## Workflows
+
+### Daily Sync
+- Runs at midnight every day
+- Compares config repos vs actual GitHub repos
+- Reports any discrepancies
+
+### Update All Repos
+- Clones all repos
+- Makes specified changes
+- Commits and pushes to all repos
+
+### Backup
+- Creates mirror clones of all repos
+- Archives as .tar.gz
+- Uploads as artifact
+
+### Report
+- Generates daily statistics
+- Lists public vs private repos
+- Maintains history
 
 ## Setup
 
-1. Create a Personal Access Token with `repo` scope
-2. Add as GitHub secret `GH_TOKEN`
-3. Or use `gh auth login` for CLI access
+No additional setup needed! The workflows use GitHub's built-in token.
 
-## Environment Variables
+## How It Works
 
-- `GH_TOKEN` - GitHub Personal Access Token
-
-## Example Workflow
-
-```yaml
-name: Daily Sync
-on:
-  schedule:
-    - cron: '0 0 * * *'  # Daily at midnight
-  workflow_dispatch:
-
-jobs:
-  sync:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Run sync
-        run: python bot.py sync
 ```
+Config Repo (repos.json)
+       ↓
+  Repository Dispatch
+       ↓
+  Auto-Bot Workflow
+       ↓
+  Updates All Repos
+       ↓
+  Commits & Pushes
+```
+
+## Repositories Managed
+
+See [emberlamp/config/repos.json](https://github.com/emberlamp/config/blob/main/repos.json)
+
+Total: 12 repositories
