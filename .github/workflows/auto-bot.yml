@@ -25,6 +25,7 @@ on:
 
 env:
   ORG: emberlamp
+  GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
 jobs:
   sync-repos:
@@ -67,13 +68,27 @@ jobs:
             echo "::warning::Repository list differs from config"
           fi
 
+      - name: Configure git
+        run: |
+          git config user.email "bot@emberlamp.github"
+          git config user.name "Emberlamp Bot"
+          git remote set-url origin "https://$GITHUB_ACTOR:$GITHUB_TOKEN@github.com/$GITHUB_REPOSITORY.git"
+
       - name: Create sync report PR
         if: github.event_name == 'workflow_dispatch'
         run: |
+          echo "# Emberlamp Sync Report - $(date +%Y-%m-%d)" > sync-report.md
+          echo "" >> sync-report.md
+          echo "Config repos: ${{ steps.config.outputs.config_repos }}" >> sync-report.md
+          echo "GitHub repos: ${{ steps.github.outputs.github_repos }}" >> sync-report.md
+          git add -A
+          git commit -m "docs: sync report $(date +%Y-%m-%d)" || echo "No changes to commit"
+          git push -f origin HEAD:sync-report || echo "Push failed, may already exist"
           gh pr create \
             --title "Auto Sync Report $(date +%Y-%m-%d)" \
-            --body "Automated sync report from emberlamp bot"
-          || echo "PR already exists or no changes"
+            --body "Automated sync report from emberlamp bot" \
+            --base main \
+            || echo "PR already exists or no changes"
 
   update-all-repos:
     runs-on: ubuntu-latest
@@ -149,6 +164,11 @@ jobs:
     runs-on: ubuntu-latest
     if: github.event_name == 'schedule'
     steps:
+      - name: Configure git
+        run: |
+          git config user.email "bot@emberlamp.github"
+          git config user.name "Emberlamp Bot"
+
       - name: Generate daily report
         run: |
           echo "📊 Daily Emberlamp Report - $(date +%Y-%m-%d)"
