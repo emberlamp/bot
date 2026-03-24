@@ -85,6 +85,7 @@ jobs:
           git commit -m "docs: sync report $(date +%Y-%m-%d)" || echo "No changes to commit"
           git push -f origin HEAD:sync-report || echo "Push failed, may already exist"
           gh pr create \
+            --head sync-report \
             --title "Auto Sync Report $(date +%Y-%m-%d)" \
             --body "Automated sync report from emberlamp bot" \
             --base main \
