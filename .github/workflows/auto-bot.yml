@@ -1,0 +1,168 @@
+name: Emberlamp Auto Bot
+
+on:
+  # Trigger on schedule (daily at midnight)
+  schedule:
+    - cron: '0 0 * * *'
+  
+  # Trigger when config repo changes
+  repository_dispatch:
+    types: [config-update]
+  
+  # Trigger on workflow dispatch for manual runs
+  workflow_dispatch:
+    inputs:
+      action:
+        description: 'Action to perform'
+        required: true
+        default: 'sync'
+        type: choice
+        options:
+          - sync
+          - update
+          - backup
+          - report
+
+env:
+  ORG: emberlamp
+
+jobs:
+  sync-repos:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+      actions: write
+    steps:
+      - name: Checkout bot repo
+        uses: actions/checkout@v4
+
+      - name: Fetch repos from config
+        id: config
+        run: |
+          curl -s https://raw.githubusercontent.com/${{ env.ORG }}/config/main/repos.json > repos.json
+          echo "config_repos=$(cat repos.json | jq -r '.repos | join(",")')" >> $GITHUB_OUTPUT
+          cat repos.json
+
+      - name: Get current GitHub repos
+        id: github
+        run: |
+          echo "github_repos=$(gh api orgs/${{ env.ORG }}/repos --jq '.[].name' | tr '\n' ',')" >> $GITHUB_OUTPUT
+          echo "Current repos on GitHub:"
+          gh api orgs/${{ env.ORG }}/repos --jq '.[].name' | sed 's/^/  - /'
+
+      - name: Compare repos
+        run: |
+          CONFIG=${{ steps.config.outputs.config_repos }}
+          GITHUB=${{ steps.github.outputs.github_repos }}
+          
+          echo "Config: $CONFIG"
+          echo "GitHub: $GITHUB"
+          
+          # Check if they match
+          if [ "$CONFIG" = "$GITHUB" ]; then
+            echo "✅ Repos are in sync!"
+          else
+            echo "⚠️ Repos are out of sync!"
+            echo "::warning::Repository list differs from config"
+          fi
+
+      - name: Create sync report PR
+        if: github.event_name == 'workflow_dispatch'
+        run: |
+          gh pr create \
+            --title "Auto Sync Report $(date +%Y-%m-%d)" \
+            --body "Automated sync report from emberlamp bot"
+          || echo "PR already exists or no changes"
+
+  update-all-repos:
+    runs-on: ubuntu-latest
+    needs: sync-repos
+    if: github.event.inputs.action == 'update' || github.event.inputs.action == 'report'
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout bot
+        uses: actions/checkout@v4
+
+      - name: Get repos list
+        run: |
+          curl -s https://raw.githubusercontent.com/${{ env.ORG }}/config/main/repos.json | jq -r '.repos[]' > repos.txt
+          cat repos.txt
+
+      - name: Update each repo
+        run: |
+          while read repo; do
+            echo "Processing $repo..."
+            # Clone, update, commit, push
+            git clone "https://github.com/${{ env.ORG }}/$repo.git" "/tmp/$repo" 2>/dev/null || true
+            if [ -d "/tmp/$repo" ]; then
+              cd "/tmp/$repo"
+              echo "Last updated: $(date)" >> README.md
+              git add -A
+              git commit -m "chore: auto update from bot" || echo "No changes"
+              git push || echo "Push failed"
+              cd /
+              echo "✅ $repo updated"
+            fi
+          done < repos.txt
+
+      - name: Report results
+        run: |
+          echo "::notice::Updated all repositories!"
+
+  backup-repos:
+    runs-on: ubuntu-latest
+    if: github.event.inputs.action == 'backup'
+    permissions:
+      contents: write
+    steps:
+      - name: Create backup archive
+        run: |
+          mkdir -p backup
+          REPOS=$(gh api orgs/${{ env.ORG }}/repos --jq '.[].name')
+          for repo in $REPOS; do
+            echo "Cloning $repo..."
+            git clone --mirror "https://github.com/${{ env.ORG }}/$repo.git" "backup/$repo.git"
+          done
+          tar -czf emberlamp-backup-$(date +%Y%m%d).tar.gz backup/
+          echo "Backup created: emberlamp-backup-$(date +%Y%m%d).tar.gz"
+
+      - name: Upload backup
+        uses: actions/upload-artifact@v4
+        with:
+          name: emberlamp-backup
+          path: emberlamp-backup-*.tar.gz
+
+  auto-update-trigger:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'repository_dispatch'
+    steps:
+      - name: Trigger update workflow
+        run: |
+          echo "Config changed! Triggering update..."
+          gh api repos/${{ env.ORG }}/bot/dispatches \
+            -f event_type=auto-update \
+            --method POST || true
+
+  scheduled-report:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'schedule'
+    steps:
+      - name: Generate daily report
+        run: |
+          echo "📊 Daily Emberlamp Report - $(date +%Y-%m-%d)"
+          echo ""
+          echo "Repositories: $(gh api orgs/${{ env.ORG }}/repos --jq 'length')"
+          echo ""
+          echo "Public repos:"
+          gh api orgs/${{ env.ORG }}/repos --jq '.[] | select(.visibility == "public") | .name' | sed 's/^/  - /'
+          echo ""
+          echo "Private repos:"
+          gh api orgs/${{ env.ORG }}/repos --jq '.[] | select(.visibility == "private") | .name' | sed 's/^/  - /'
+          
+          # Commit report
+          echo "- $(date): $(gh api orgs/${{ env.ORG }}/repos --jq 'length') repos" >> history.md
+          git add -A
+          git commit -m "docs: daily report $(date +%Y-%m-%d)" || true
+          git push || true
