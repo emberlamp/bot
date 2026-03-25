@@ -26,7 +26,7 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Fetch all tags
-        run: git fetch --tags origin
+        run: git fetch --tags --force origin
 
       - name: Determine version bump
         id: version
@@ -67,6 +67,7 @@ jobs:
           echo "bump=$BUMP" >> $GITHUB_OUTPUT
 
       - name: Bump version and tag
+        id: bump
         if: steps.version.outputs.bump != 'none'
         run: |
           LAST_TAG=$(git describe --tags --abbrev=0 origin/main 2>/dev/null || echo "")
@@ -94,7 +95,7 @@ jobs:
         if: steps.version.outputs.bump != 'none'
         id: release_notes
         run: |
-          LAST_TAG=$(git describe --tags --abbrev=0 origin/main HEAD^ 2>/dev/null || echo "v0.0.0")
+          LAST_TAG=$(git describe --tags --abbrev=0 origin/main HEAD^ 2>/dev/null | tr -d "\n")
           
           echo "## What's Changed" > release_notes.md
           echo "" >> release_notes.md
@@ -125,8 +126,7 @@ jobs:
       - name: Create Release
         if: steps.version.outputs.bump != 'none'
         run: |
-          # Get the tag that was just pushed (from origin/main to ensure we get latest)
-          TAG=$(git describe --tags --abbrev=0 origin/main)
+          TAG="${{ steps.bump.outputs.NEW_TAG }}"
           echo "Creating release for tag: $TAG"
           
           # Check if release already exists
