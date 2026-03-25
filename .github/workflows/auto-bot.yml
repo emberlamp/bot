@@ -60,9 +60,12 @@ jobs:
           echo "Config: $CONFIG"
           echo "GitHub: $GITHUB"
           
-          # Sort both lists before comparing
-          CONFIG_SORTED=$(echo "$CONFIG" | tr ',' '\n' | sort | tr '\n' ',')
-          GITHUB_SORTED=$(echo "$GITHUB" | tr ',' '\n' | sort | tr '\n' ',')
+          # Sort both lists before comparing (filter out empty strings from trailing comma)
+          CONFIG_SORTED=$(echo "$CONFIG" | tr ',' '\n' | grep -v '^$' | sort | tr '\n' ',')
+          GITHUB_SORTED=$(echo "$GITHUB" | tr ',' '\n' | grep -v '^$' | sort | tr '\n' ',')
+          
+          echo "Config sorted: $CONFIG_SORTED"
+          echo "GitHub sorted: $GITHUB_SORTED"
           
           # Check if they match
           if [ "$CONFIG_SORTED" = "$GITHUB_SORTED" ]; then
@@ -81,8 +84,8 @@ jobs:
       - name: Create sync report PR
         if: github.event_name == 'workflow_dispatch'
         run: |
-          CONFIG_SORTED=$(echo "${{ steps.config.outputs.config_repos }}" | tr ',' '\n' | sort | tr '\n' ' ')
-          GITHUB_SORTED=$(echo "${{ steps.github.outputs.github_repos }}" | tr ',' '\n' | sort | tr '\n' ' ')
+          CONFIG_SORTED=$(echo "${{ steps.config.outputs.config_repos }}" | tr ',' '\n' | grep -v '^$' | sort | tr '\n' ' ')
+          GITHUB_SORTED=$(echo "${{ steps.github.outputs.github_repos }}" | tr ',' '\n' | grep -v '^$' | sort | tr '\n' ' ')
           echo "# Emberlamp Sync Report - $(date +%Y-%m-%d)" > sync-report.md
           echo "" >> sync-report.md
           echo "Config repos: $CONFIG_SORTED" >> sync-report.md
