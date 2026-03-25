@@ -60,8 +60,12 @@ jobs:
           echo "Config: $CONFIG"
           echo "GitHub: $GITHUB"
           
+          # Sort both lists before comparing
+          CONFIG_SORTED=$(echo "$CONFIG" | tr ',' '\n' | sort | tr '\n' ',')
+          GITHUB_SORTED=$(echo "$GITHUB" | tr ',' '\n' | sort | tr '\n' ',')
+          
           # Check if they match
-          if [ "$CONFIG" = "$GITHUB" ]; then
+          if [ "$CONFIG_SORTED" = "$GITHUB_SORTED" ]; then
             echo "✅ Repos are in sync!"
           else
             echo "⚠️ Repos are out of sync!"
@@ -77,10 +81,12 @@ jobs:
       - name: Create sync report PR
         if: github.event_name == 'workflow_dispatch'
         run: |
+          CONFIG_SORTED=$(echo "${{ steps.config.outputs.config_repos }}" | tr ',' '\n' | sort | tr '\n' ' ')
+          GITHUB_SORTED=$(echo "${{ steps.github.outputs.github_repos }}" | tr ',' '\n' | sort | tr '\n' ' ')
           echo "# Emberlamp Sync Report - $(date +%Y-%m-%d)" > sync-report.md
           echo "" >> sync-report.md
-          echo "Config repos: ${{ steps.config.outputs.config_repos }}" >> sync-report.md
-          echo "GitHub repos: ${{ steps.github.outputs.github_repos }}" >> sync-report.md
+          echo "Config repos: $CONFIG_SORTED" >> sync-report.md
+          echo "GitHub repos: $GITHUB_SORTED" >> sync-report.md
           git add -A
           git commit -m "docs: sync report $(date +%Y-%m-%d)" || echo "No changes to commit"
           git push -f origin HEAD:sync-report || echo "Push failed, may already exist"
