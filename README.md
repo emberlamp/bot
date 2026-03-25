@@ -87,4 +87,4 @@ Config Repo (repos.json)
 
 See [emberlamp/config/repos.json](https://github.com/emberlamp/config/blob/main/repos.json)
 
-Total: 12 repositories
+Total: 14 repositories
