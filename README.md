@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="https://raw.githubusercontent.com/Coccinella-Labs/bot/main/.github/assets/thumbnail.png" alt="bot" width="100%">
+</p>
+
 # Emberlamp Auto Bot
 
 Automation bot for managing emberlamp organization repositories.
